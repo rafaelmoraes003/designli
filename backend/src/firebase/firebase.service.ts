@@ -28,8 +28,8 @@ export class FirebaseService {
             await getMessaging().send({
                 token: fcmToken,
                 notification: {
-                    title: `${symbol} atingiu o preço alvo!`,
-                    body: `Preço atual: $${currentPrice} | Seu alerta: $${targetPrice}`,
+                    title: `${symbol} hit the price target!!`,
+                    body: `Current price: $${currentPrice} | Your alert: $${targetPrice}`,
                 },
                 data: {
                     symbol,
