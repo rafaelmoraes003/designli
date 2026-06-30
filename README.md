@@ -1,129 +1,484 @@
-# Designli — Stock Price Alert App
+# Designli — Technical Documentation
 
-A full-stack mobile application that lets users track stock prices in real time and receive push notifications when a stock reaches a target price they've set.
+## Project Overview
 
-## Overview
+Designli is a full-stack mobile application that allows users to monitor stock prices and receive push notifications when a stock reaches a target price defined by the user.
 
-Designli was built to satisfy the following functional requirements:
+The application was built with a clear separation between frontend and backend, following REST principles and using JWT authentication, MongoDB persistence, scheduled background jobs, and Firebase Cloud Messaging for real-time notifications.
 
-1. User authentication (sign up / login)
-2. Form to create a stock price alert
-3. List of available stocks
-4. Stock price chart/visualization
-5. Firebase Cloud Messaging (FCM) notification when a stock price crosses the user's alert threshold
+---
 
-## Tech Stack
+# Features
 
-**Backend**
-- NestJS (Node.js framework)
-- MongoDB (Mongoose ODM)
-- JWT authentication (Passport)
-- Finnhub API (stock market data)
-- Firebase Admin SDK (push notifications)
-- Scheduled jobs (`@nestjs/schedule`) for price monitoring
+## Authentication
 
-**Frontend**
-- React Native (Expo)
-- Expo Router (navigation)
-- React Native Firebase (FCM)
-- AsyncStorage (JWT persistence)
+The application provides secure user authentication through:
 
-**Infrastructure**
-- Backend deployed on Railway
-- MongoDB hosted on Railway / MongoDB Atlas
-- Mobile app built with EAS Build (Android APK)
+- User registration
+- User login
+- Password hashing using **bcrypt**
+- JWT-based authentication
+- Protected API routes
+- Persistent sessions using AsyncStorage
 
-## Architecture
+---
 
-### Authentication
+## Stock Explorer
 
-- Passwords are hashed with `bcrypt` before being stored
-- On login, the server issues a JWT signed with a secret key
-- Protected routes use a custom `JwtAuthGuard` (built with Passport's JWT strategy) to verify the token and attach the authenticated user (`req.user`) to each request
-- The frontend stores the JWT in `AsyncStorage` and attaches it to every authenticated request via the `Authorization: Bearer <token>` header
+Users can browse the list of available stocks retrieved from the Finnhub API.
 
-### API Routes
+Features include:
 
-**Users**
-| Method | Route | Description | Protected |
-|--------|-------|-------------|-----------|
-| POST | `/users` | Create a new user account | No |
-| PATCH | `/users/fcm-token` | Save/update the device's FCM token | Yes |
+- Search stocks by symbol or company name
+- View the latest stock price
+- Open a price chart for each stock
 
-**Auth**
-| Method | Route | Description | Protected |
-|--------|-------|-------------|-----------|
-| POST | `/auth/login` | Authenticate and receive a JWT | No |
+---
 
-**Alerts**
-| Method | Route | Description | Protected |
-|--------|-------|-------------|-----------|
-| GET | `/alerts` | List all alerts for the logged-in user | Yes |
-| POST | `/alerts` | Create a new stock price alert | Yes |
-| DELETE | `/alerts/:id` | Delete an alert (only by its owner) | Yes |
+## Price Alerts
 
-**Finnhub (Stock Data)**
-| Method | Route | Description | Protected |
-|--------|-------|-------------|-----------|
-| GET | `/finnhub/stocks` | List all available stocks (US market) | Yes |
-| GET | `/finnhub/quote/:symbol` | Get real-time quote for a given stock symbol | Yes |
+Authenticated users can create custom price alerts.
 
-### Data Validation
+Each alert contains:
 
-- DTOs use `class-validator` decorators to enforce input rules (e.g. username length, password complexity, stock symbol format, minimum target price) before any request reaches the service layer.
+- Stock symbol
+- Target price
 
-### Price Monitoring & Notifications
+Users can:
 
-A scheduled job (`AlertCheckerService`) runs every minute:
+- Create alerts
+- View all active alerts
+- Delete alerts
 
-1. Fetches all alerts marked as not yet triggered
-2. Queries Finnhub for the current price of each alert's stock symbol
-3. If the current price has reached or exceeded the user's target price:
-   - Sends a push notification via Firebase Cloud Messaging to the user's registered device
-   - Marks the alert as `triggered` to avoid duplicate notifications
+Every alert belongs exclusively to the authenticated user.
 
-### Database Schema
+---
 
-**User**
-- `name: string` (unique, min 5 characters)
-- `password: string` (hashed, requires uppercase, lowercase, number, and symbol)
-- `fcmToken: string` (optional, set after login)
+## Push Notifications
 
-**Alert**
-- `userId: ObjectId` (reference to User)
-- `symbol: string` (stock ticker, e.g. "AAPL")
-- `targetPrice: number`
-- `triggered: boolean` (default false)
-- `createdAt` / `updatedAt` (automatic timestamps)
+A background scheduler continuously monitors all pending alerts.
 
-## Mobile App Screens
+Whenever a stock reaches the configured target price:
 
-- **Sign Up** — create an account with validated username/password rules
-- **Login** — authenticate and persist JWT + register FCM token
-- **Home**
-  - *Stocks tab* — searchable list of stocks with a price chart modal
-  - *Alerts tab* — create, view, and delete price alerts
-  - *Profile tab* — logout
+- A Firebase Cloud Messaging notification is sent to the user's device.
+- The alert is marked as triggered.
+- Future executions ignore triggered alerts, preventing duplicate notifications.
 
-## Deployment
+---
 
-- The NestJS backend and MongoDB database are both deployed on **Railway**, with environment variables (JWT secret, Finnhub API key, Firebase credentials, MongoDB URI) configured through Railway's dashboard.
-- The mobile app is built as a standalone Android APK using **EAS Build**, since Firebase Cloud Messaging requires native modules that aren't available in Expo Go.
+# System Architecture
 
-## Running Locally
+```text
+                    +-----------------------+
+                    |   React Native App    |
+                    +-----------+-----------+
+                                |
+                                | REST API
+                                |
+                    +-----------v-----------+
+                    |      NestJS API       |
+                    +-----------+-----------+
+                                |
+        +-----------+-----------+-----------+
+        |           |                       |
+        |           |                       |
++-------v------+ +--v--------------+ +------v------+
+| Authentication| | Alert Service  | | Finnhub API |
++--------------+ +-----------------+ +-------------+
+        |
+        |
++-------v--------------------+
+| Firebase Cloud Messaging   |
++----------------------------+
+        |
+        |
++-------v--------------------+
+|         MongoDB            |
++----------------------------+
+```
 
-**Backend**
+---
+
+# Backend Architecture
+
+The backend is organized into independent modules following the NestJS architecture.
+
+## Modules
+
+### AuthModule
+
+Responsible for:
+
+- User authentication
+- JWT generation
+- Password validation
+- Route protection
+
+---
+
+### UsersModule
+
+Responsible for:
+
+- User registration
+- Storing Firebase device tokens
+- User management
+
+---
+
+### AlertsModule
+
+Responsible for:
+
+- Creating alerts
+- Listing alerts
+- Deleting alerts
+- Ownership validation
+
+---
+
+### FinnhubModule
+
+Responsible for:
+
+- Retrieving stock symbols
+- Retrieving stock prices
+- Communicating with the Finnhub API
+
+---
+
+### AlertCheckerService
+
+Runs automatically every minute using NestJS Scheduler.
+
+Execution flow:
+
+1. Retrieve all pending alerts
+2. Fetch the current stock price
+3. Compare against the target price
+4. Send push notification if necessary
+5. Mark the alert as triggered
+
+---
+
+# Authentication Flow
+
+```text
+User Registration
+        │
+        ▼
+Password Hash (bcrypt)
+        │
+        ▼
+Store User
+        │
+        ▼
+User Login
+        │
+        ▼
+JWT Generated
+        │
+        ▼
+Stored in AsyncStorage
+        │
+        ▼
+Authorization: Bearer <token>
+```
+
+---
+
+# Alert Notification Flow
+
+```text
+User Creates Alert
+        │
+        ▼
+Alert Saved
+        │
+        ▼
+Scheduler (Every Minute)
+        │
+        ▼
+Request Current Price
+        │
+        ▼
+Target Price Reached?
+      │             │
+      No           Yes
+      │             │
+      ▼             ▼
+ Continue     Send FCM Notification
+                    │
+                    ▼
+         Mark Alert as Triggered
+```
+
+---
+
+# Database Design
+
+## User Collection
+
+| Field | Type | Description |
+|-------|------|-------------|
+| _id | ObjectId | User identifier |
+| name | String | Unique username |
+| password | String | bcrypt hash |
+| fcmToken | String | Firebase device token |
+
+---
+
+## Alert Collection
+
+| Field | Type | Description |
+|-------|------|-------------|
+| _id | ObjectId | Alert identifier |
+| userId | ObjectId | Owner of the alert |
+| symbol | String | Stock ticker |
+| targetPrice | Number | Desired price |
+| triggered | Boolean | Notification status |
+| createdAt | Date | Creation timestamp |
+| updatedAt | Date | Last update timestamp |
+
+---
+
+# API Overview
+
+## Authentication
+
+### POST /auth/login
+
+Authenticates a user and returns a JWT token.
+
+---
+
+## Users
+
+### POST /users
+
+Creates a new user account.
+
+### PATCH /users/fcm-token
+
+Stores or updates the Firebase Cloud Messaging token.
+
+Authentication required.
+
+---
+
+## Alerts
+
+### GET /alerts
+
+Returns all alerts belonging to the authenticated user.
+
+### POST /alerts
+
+Creates a new alert.
+
+### DELETE /alerts/:id
+
+Deletes an existing alert.
+
+Only the alert owner can perform this action.
+
+---
+
+## Finnhub
+
+### GET /finnhub/stocks
+
+Returns available US stock symbols.
+
+### GET /finnhub/quote/:symbol
+
+Returns the current stock price.
+
+---
+
+# Security
+
+The application implements several security best practices.
+
+## Password Protection
+
+Passwords are never stored in plain text.
+
+They are hashed using **bcrypt** before persistence.
+
+---
+
+## JWT Authentication
+
+Protected routes require a valid JWT.
+
+Authentication is handled through Passport's JWT Strategy.
+
+---
+
+## Request Validation
+
+Incoming requests are validated using **class-validator**.
+
+Examples include:
+
+- Username length
+- Password complexity
+- Required fields
+- Target price validation
+- Stock symbol validation
+
+---
+
+## Authorization
+
+Users can only access their own alerts.
+
+Ownership is verified before allowing deletion.
+
+---
+
+# Frontend Structure
+
+```text
+frontend/
+│
+├── app/
+│   ├── (auth)
+│   ├── (tabs)
+│   └── index.tsx
+│
+├── components/
+│
+├── hooks/
+│
+├── services/
+│
+└── assets/
+```
+
+---
+
+# Backend Structure
+
+```text
+backend/
+│
+├── auth/
+├── users/
+├── alerts/
+├── finnhub/
+├── common/
+├── firebase/
+└── main.ts
+```
+
+---
+
+# Technologies
+
+## Backend
+
+- NestJS
+- Node.js
+- MongoDB
+- Mongoose
+- Passport JWT
+- bcrypt
+- class-validator
+- Firebase Admin SDK
+- Finnhub API
+- @nestjs/schedule
+
+---
+
+## Frontend
+
+- React Native
+- Expo
+- Expo Router
+- React Native Firebase
+- AsyncStorage
+
+---
+
+## Infrastructure
+
+- Railway
+- MongoDB Atlas
+- Firebase Cloud Messaging
+- EAS Build
+
+---
+
+# Deployment
+
+The backend is deployed on Railway.
+
+Environment variables include:
+
+- JWT_SECRET
+- MONGO_URL
+- FINNHUB_API_KEY
+- FIREBASE_PROJECT_ID
+- FIREBASE_CLIENT_EMAIL
+- FIREBASE_PRIVATE_KEY
+
+The mobile application is distributed as a native Android APK built using **EAS Build**, since Firebase Cloud Messaging requires native modules unavailable in Expo Go.
+
+---
+
+# Running the Project
+
+## Backend
+
 ```bash
 cd backend
 npm install
 npm run start:dev
 ```
 
-**Frontend**
+---
+
+## Frontend
+
 ```bash
 cd frontend
 npm install
 npx expo start
 ```
 
-> Note: FCM notifications only work on a native build (`eas build`), not in Expo Go.
+---
+
+## Android Build
+
+```bash
+eas build -p android
+```
+
+> **Note:** Push notifications only work in a native build generated with EAS Build. They are not supported in Expo Go.
+
+---
+
+# Possible Future Improvements
+
+Although the application meets all requested requirements, several improvements could be added in future iterations:
+
+- Edit existing alerts
+- Alert conditions for both price increase and decrease
+- Historical notification log
+- Better stock chart visualization
+- User profile management
+- Docker Compose deployment
+- Unit and integration tests
+- CI/CD pipeline
+- Rate limiting
+- API documentation with Swagger
+
+---
+
+# Conclusion
+
+This project demonstrates the implementation of a complete mobile application using modern technologies and good backend architecture practices.
+
+The application includes secure authentication, persistent storage, scheduled background processing, external API integration, and real-time push notifications while maintaining a modular and scalable architecture.
