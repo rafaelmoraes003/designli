@@ -338,43 +338,6 @@ Ownership is verified before allowing deletion.
 
 ---
 
-# Frontend Structure
-
-```text
-frontend/
-│
-├── app/
-│   ├── (auth)
-│   ├── (tabs)
-│   └── index.tsx
-│
-├── components/
-│
-├── hooks/
-│
-├── services/
-│
-└── assets/
-```
-
----
-
-# Backend Structure
-
-```text
-backend/
-│
-├── auth/
-├── users/
-├── alerts/
-├── finnhub/
-├── common/
-├── firebase/
-└── main.ts
-```
-
----
-
 # Technologies
 
 ## Backend
